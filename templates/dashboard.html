@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LocalFlow Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            margin: 0; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        .header { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .tabs { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+        }
+        .tab { 
+            padding: 10px 20px; 
+            background: white; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .tab.active { 
+            background: #007bff; 
+            color: white; 
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            margin-bottom: 20px; 
+        }
+        .form-group { 
+            margin-bottom: 15px; 
+        }
+        .form-group label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: 500; 
+        }
+        .form-group input, 
+        .form-group select, 
+        .form-group textarea { 
+            width: 100%; 
+            padding: 8px 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            font-size: 14px; 
+        }
+        .btn { 
+            padding: 8px 16px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 14px; 
+        }
+        .btn-primary { 
+            background: #007bff; 
+            color: white; 
+        }
+        .btn-danger { 
+            background: #dc3545; 
+            color: white; 
+        }
+        .table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+        .table th, 
+        .table td { 
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 1px solid #ddd; 
+        }
+        .table th { 
+            background: #f8f9fa; 
+            font-weight: 600; 
+        }
+        .status { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            font-weight: 500; 
+        }
+        .status-queued { 
+            background: #fff3cd; 
+            color: #856404; 
+        }
+        .status-running { 
+            background: #cce5ff; 
+            color: #004085; 
+        }
+        .status-succeeded { 
+            background: #d4edda; 
+            color: #155724; 
+        }
+        .status-failed { 
+            background: #f8d7da; 
+            color: #721c24; 
+        }
+        .hidden { 
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>LocalFlow Dashboard</h1>
+            <p>Task Processing Platform</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('tasks')">Tasks</button>
+            <button class="tab" onclick="showTab('schedules')">Schedules</button>
+            <button class="tab" onclick="showTab('submit')">Submit Task</button>
+        </div>
+        
+        <!-- Tasks Tab -->
+        <div id="tasks-tab">
+            <div class="card">
+                <h2>Recent Tasks</h2>
+                <div id="tasks-list" hx-get="/dashboard/tasks" hx-trigger="load, every 5s">
+                    Loading...
+                </div>
+            </div>
+        </div>
+        
+        <!-- Schedules Tab -->
+        <div id="schedules-tab" class="hidden">
+            <div class="card">
+                <h2>Schedules</h2>
+                <button class="btn btn-primary" onclick="showCreateScheduleForm()">Create Schedule</button>
+                <div id="schedules-list" hx-get="/dashboard/schedules" hx-trigger="load">
+                    Loading...
+                </div>
+            </div>
+            
+            <div id="create-schedule-form" class="card hidden">
+                <h3>Create Schedule</h3>
+                <form hx-post="/dashboard/schedules" hx-target="#schedules-list">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Cron Expression</label>
+                        <input type="text" name="cron_expr" placeholder="0 */5 * * * *" required>
+                        <small>Examples: "0 */5 * * * *" (every 5 minutes), "0 0 9 * * MON-FRI" (9 AM weekdays)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Task Type</label>
+                        <select name="task_type" required>
+                            <option value="">Select...</option>
+                            <option value="shell">Shell</option>
+                            <option value="http">HTTP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Payload (JSON)</label>
+                        <textarea name="payload" rows="4" placeholder='{"command": "echo", "args": ["Hello"]}'></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <input type="number" name="priority" value="5" min="1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Attempts</label>
+                        <input type="number" name="max_attempts" value="5" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="enabled" checked> Enabled
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Schedule</button>
+                    <button type="button" class="btn" onclick="hideCreateScheduleForm()">Cancel</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Submit Task Tab -->
+        <div id="submit-tab" class="hidden">
+            <div class="card">
+                <h2>Submit Task</h2>
+                <form hx-post="/dashboard/tasks" hx-target="#submit-result">
+                    <div class="form-group">
+                        <label>Task Type</label>
+                        <select name="type" required onchange="updatePayloadTemplate(this.value)">
+                            <option value="">Select...</option>
+                            <option value="shell">Shell Command</option>
+                            <option value="http">HTTP Request</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Payload (JSON)</label>
+                        <textarea id="payload-input" name="payload" rows="6" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <input type="number" name="priority" value="5" min="1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Attempts</label>
+                        <input type="number" name="max_attempts" value="5" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Idempotency Key (optional)</label>
+                        <input type="text" name="idempotency_key" placeholder="unique-key-123">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit Task</button>
+                </form>
+                <div id="submit-result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('[id$="-tab"]').forEach(tab => tab.classList.add('hidden'));
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            event.target.classList.add('active');
+        }
+        
+        function showCreateScheduleForm() {
+            document.getElementById('create-schedule-form').classList.remove('hidden');
+        }
+        
+        function hideCreateScheduleForm() {
+            document.getElementById('create-schedule-form').classList.add('hidden');
+        }
+        
+        function updatePayloadTemplate(taskType) {
+            const input = document.getElementById('payload-input');
+            const templates = {
+                shell: '{\n  "command": "echo",\n  "args": ["Hello, World!"]\n}',
+                http: '{\n  "url": "http://localhost:8080/health",\n  "method": "GET",\n  "headers": {"Content-Type": "application/json"},\n  "timeout": 30\n}'
+            };
+            if (templates[taskType]) {
+                input.value = templates[taskType];
+            }
+        }
+    </script>
+</body>
+</html>

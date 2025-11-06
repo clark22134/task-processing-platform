@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,17 +17,21 @@ import (
 	_ "modernc.org/sqlite"
 
 	"localflow/internal/api"
+	httphandler "localflow/internal/handlers/http"
 	"localflow/internal/handlers/shell"
 	"localflow/internal/queue"
+	"localflow/internal/scheduler"
 	"localflow/internal/worker"
 )
 
 func main() {
 	var (
-		addr   = flag.String("addr", ":8080", "HTTP bind address")
-		dbPath = flag.String("db", "localflow.db", "SQLite DB path")
-		workers = flag.Int("workers", 8, "number of worker goroutines")
-		poll    = flag.Duration("poll", 250*time.Millisecond, "poll interval for queue")
+		addr     = flag.String("addr", ":8080", "HTTP bind address")
+		dbPath   = flag.String("db", "localflow.db", "SQLite DB path")
+		workers  = flag.Int("workers", 8, "number of worker goroutines")
+		poll     = flag.Duration("poll", 250*time.Millisecond, "poll interval for queue")
+		debug    = flag.Bool("debug", false, "enable debug mode with pprof endpoints")
+		schedInt = flag.Duration("schedule-interval", 10*time.Second, "schedule check interval")
 	)
 	flag.Parse()
 
@@ -35,11 +40,15 @@ func main() {
 
 	dsn := fmt.Sprintf("file:%s?cache=shared&mode=rwc&_pragma=journal_mode(WAL)", *dbPath)
 	db, err := sql.Open("sqlite", dsn)
-	if err != nil { log.Fatal().Err(err).Msg("open db") }
+	if err != nil {
+		log.Fatal().Err(err).Msg("open db")
+	}
 	defer db.Close()
 	db.SetMaxOpenConns(1) // SQLite single writer
 
-	if err := queue.EnsureSchema(db); err != nil { log.Fatal().Err(err).Msg("ensure schema") }
+	if err := queue.EnsureSchema(db); err != nil {
+		log.Fatal().Err(err).Msg("ensure schema")
+	}
 
 	repo := queue.NewSQLiteRepo(db)
 	if n, err := repo.RecoverStale(context.Background(), time.Now()); err == nil {
@@ -49,6 +58,7 @@ func main() {
 	// Handlers registry
 	handlers := map[string]worker.Handler{
 		"shell": shell.Shell{},
+		"http":  httphandler.HTTP{},
 	}
 
 	// Start worker pool
@@ -56,10 +66,19 @@ func main() {
 	pool := worker.NewPool(repo, handlers, *workers, *poll)
 	go pool.Run(ctx)
 
-	// HTTP server
-	srv := &http.Server{Addr: *addr, Handler: api.NewServer(repo)}
+	// Start scheduler service
+	schedulerSvc := scheduler.NewService(repo, *schedInt)
+	go schedulerSvc.Start(ctx)
+
+	// HTTP server with optional debug endpoints
+	server := api.NewServerWithDebug(repo, *debug)
+	if *debug {
+		log.Info().Msg("debug mode enabled - pprof available at /debug/pprof/")
+	}
+
+	srv := &http.Server{Addr: *addr, Handler: server}
 	go func() {
-		log.Info().Str("addr", *addr).Msg("HTTP server starting")
+		log.Info().Str("addr", *addr).Bool("debug", *debug).Msg("HTTP server starting")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("http server")
 		}

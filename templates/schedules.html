@@ -1,0 +1,15 @@
+{{range .}}
+<tr>
+    <td>{{.Name}}</td>
+    <td><code>{{.CronExpr}}</code></td>
+    <td>{{.TaskType}}</td>
+    <td>{{if .Enabled}}✅{{else}}❌{{end}}</td>
+    <td>{{if .LastRun}}{{.LastRun.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td>
+    <td>{{.NextRun.Format "2006-01-02 15:04:05"}}</td>
+    <td>
+        <button class="btn btn-danger" hx-delete="/dashboard/schedules/{{.ID}}" hx-target="#schedules-list">Delete</button>
+    </td>
+</tr>
+{{else}}
+<tr><td colspan="7">No schedules found</td></tr>
+{{end}}

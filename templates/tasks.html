@@ -1,0 +1,12 @@
+{{range .}}
+<tr>
+    <td>{{.ID}}</td>
+    <td>{{.Type}}</td>
+    <td><span class="status status-{{.State}}">{{.State}}</span></td>
+    <td>{{.Attempts}}/{{.MaxAttempts}}</td>
+    <td>{{.Priority}}</td>
+    <td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+</tr>
+{{else}}
+<tr><td colspan="6">No tasks found</td></tr>
+{{end}}

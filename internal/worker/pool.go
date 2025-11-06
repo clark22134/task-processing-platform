@@ -14,10 +14,10 @@ type Handler interface {
 }
 
 type Pool struct {
-	repo     queue.Repository
-	handlers map[string]Handler
-	sem      chan struct{}
-	stop     chan struct{}
+	repo      queue.Repository
+	handlers  map[string]Handler
+	sem       chan struct{}
+	stop      chan struct{}
 	pollEvery time.Duration
 }
 
@@ -37,11 +37,13 @@ func (p *Pool) Run(ctx context.Context) {
 		case now := <-t.C:
 			for {
 				task, lease, err := p.repo.LeaseNext(ctx, now)
-				if err != nil { break }
+				if err != nil {
+					break
+				}
 				_ = lease // reserved for future
 				p.sem <- struct{}{}
 				go func(tk domain.Task) {
-					defer func(){ <-p.sem }()
+					defer func() { <-p.sem }()
 					h, ok := p.handlers[tk.Type]
 					if !ok {
 						_ = p.repo.Fail(ctx, tk.ID, "no handler", 0)
@@ -62,8 +64,12 @@ func (p *Pool) Run(ctx context.Context) {
 }
 
 func backoffExp(attempts int) time.Duration {
-	if attempts <= 0 { return time.Second }
-	d := 1 << (attempts-1) // 1,2,4,8...
-	if d > 60 { d = 60 }
+	if attempts <= 0 {
+		return time.Second
+	}
+	d := 1 << (attempts - 1) // 1,2,4,8...
+	if d > 60 {
+		d = 60
+	}
 	return time.Duration(d) * time.Second
 }
